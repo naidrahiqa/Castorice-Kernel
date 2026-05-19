@@ -412,9 +412,17 @@ jobs:
 
             # Selalu bersihkan integrasi Kconfig lama untuk menghindari redundansi atau kegagalan parsing
             sed -i '/drivers\/kernelsu\/Kconfig/d' common/drivers/Kconfig
-            # Suntikkan Kconfig secara aman dengan menambahkannya di akhir file secara absolut
-            echo 'source "drivers/kernelsu/Kconfig"' >> common/drivers/Kconfig
-            echo "   ✅ Safely appended KSU Kconfig at the end of drivers/Kconfig"
+            # Suntikkan Kconfig secara aman tepat sebelum endmenu terakhir di common/drivers/Kconfig
+            python3 -c "
+with open('common/drivers/Kconfig', 'r') as f:
+    content = f.read()
+pos = content.rfind('endmenu')
+if pos != -1:
+    content = content[:pos] + 'source \"drivers/kernelsu/Kconfig\"\n\n' + content[pos:]
+with open('common/drivers/Kconfig', 'w') as f:
+    f.write(content)
+"
+            echo "   ✅ Safely injected KSU Kconfig before endmenu in drivers/Kconfig"
 
             # Lacak perubahan file agar Bazel menyertakannya dalam pohon build
             cd common
@@ -749,8 +757,8 @@ jobs:
           # Nonaktifkan proteksi tanda tangan modul GKI agar modul pihak ketiga dapat dimuat dengan aman
           add_cfg "CONFIG_MODULE_SIG_PROTECT=n"
 
-          # Nonaktifkan pemeriksaan MODVERSIONS untuk mencegah kegagalan pencocokan versi simbol (CRC Mismatch) pada driver vendor (misalnya wlan_drv_gen4m_6768.ko)
-          add_cfg "CONFIG_MODVERSIONS=n"
+          # Wajib aktifkan CONFIG_MODVERSIONS untuk kompatibilitas KMI Bazel (menghindari error module_layout di ksymtab) dan loading driver vendor HyperOS
+          add_cfg "CONFIG_MODVERSIONS=y"
           
           # MediaTek Specific (Connectivity)
           add_cfg "CONFIG_MTK_COMBO_WIFI=y"
